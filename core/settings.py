@@ -148,6 +148,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    'http://slingringui-production.up.railway.app',
+    'https://slingringui-production.up.railway.app',
 
 ]
