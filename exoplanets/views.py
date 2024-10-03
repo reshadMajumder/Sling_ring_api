@@ -1,3 +1,4 @@
+import asyncio
 import threading
 import time
 import httpx
@@ -5,39 +6,42 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.http import JsonResponse
-from asgiref.sync import async_to_sync  
-
 
 # Global variable to store fetched exoplanet data
 exoplanet_data = {"data": [], "status": "Fetching data..."}
 
-# Define a background thread to fetch data periodically
-def background_fetch_data():
+# Async function to fetch data
+async def fetch_data():
+    url = "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/nstedAPI/nph-nstedAPI?table=cumulative&format=json"
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        return {"status": f"Error: {str(e)}"}
+
+# Function to run the async fetch_data function in a separate event loop
+def start_fetching():
     global exoplanet_data
 
-    url = "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/nstedAPI/nph-nstedAPI?table=cumulative&format=json"
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     while True:
-        try:
-            async def fetch_data():
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(url)
-                    response.raise_for_status()
-                    return response.json()
-
-            # Using async_to_sync to run the async fetch_data function
-            exoplanet_data["data"] = async_to_sync(fetch_data)()
+        fetched_data = loop.run_until_complete(fetch_data())
+        if "status" not in fetched_data:
+            exoplanet_data["data"] = fetched_data
             exoplanet_data["status"] = "Data fetched successfully"
             print("Data updated successfully in the background.")
-        except Exception as e:
-            exoplanet_data["status"] = f"Error: {str(e)}"
-            print(f"Error while fetching data: {e}")
+        else:
+            exoplanet_data["status"] = fetched_data["status"]
+            print(f"Error while fetching data: {exoplanet_data['status']}")
         
         # Fetch data every 10 seconds (adjust as needed)
         time.sleep(10)
 
 # Start the background thread to fetch data continuously
-thread = threading.Thread(target=background_fetch_data)
+thread = threading.Thread(target=start_fetching)
 thread.daemon = True  # Daemonize the thread to run in the background
 thread.start()
 
